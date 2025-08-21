@@ -1,12 +1,37 @@
 // app/students/page.tsx
 import { connectDB } from "@/lib/mongodb";
 import Student from "@/models/Student";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-export default async function StudentsPage() {
+interface Props {
+  searchParams: {
+    faculty?: string;
+    sort?: string;
+  };
+}
+
+export default async function StudentsPage({ searchParams }: Props) {
   await connectDB();
-  const students = await Student.find().sort({ updatedAt: -1 }).lean();
+
+  // Build query
+  const query: any = {};
+  if (searchParams.faculty) {
+    query.faculty = searchParams.faculty;
+  }
+
+  // Sorting options
+  let sort: any = { updatedAt: -1 };
+  if (searchParams.sort === "code_asc") sort = { code: 1 };
+  if (searchParams.sort === "code_desc") sort = { code: -1 };
+  if (searchParams.sort === "year_asc") sort = { year: 1 };
+  if (searchParams.sort === "year_desc") sort = { year: -1 };
+
+  const students = await Student.find(query).sort(sort).lean();
+
+  // Get unique faculties for filter dropdown
+  const faculties = await Student.distinct("faculty");
 
   return (
     <main className="min-h-screen bg-gray-900 text-gray-100 p-6">
@@ -15,6 +40,53 @@ export default async function StudentsPage() {
           Saved Students
         </h1>
 
+        {/* Filter + Sort Controls */}
+        <div className="flex flex-wrap gap-4 justify-between mb-6">
+          <form method="get" className="flex gap-3">
+            <select
+              name="faculty"
+              defaultValue={searchParams.faculty || ""}
+              className="bg-gray-700 text-white px-3 py-2 rounded-md"
+            >
+              <option value="">All Faculties</option>
+              {faculties.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+
+            <select
+              name="sort"
+              defaultValue={searchParams.sort || ""}
+              className="bg-gray-700 text-white px-3 py-2 rounded-md"
+            >
+              <option value="">Sort by Updated</option>
+              <option value="code_asc">Code ↑</option>
+              <option value="code_desc">Code ↓</option>
+              <option value="year_asc">Year ↑</option>
+              <option value="year_desc">Year ↓</option>
+            </select>
+
+            <button
+              type="submit"
+              className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-md text-white"
+            >
+              Apply
+            </button>
+          </form>
+
+          {searchParams.faculty || searchParams.sort ? (
+            <Link
+              href="/students"
+              className="text-sm text-gray-400 hover:text-gray-200 underline"
+            >
+              Reset Filters
+            </Link>
+          ) : null}
+        </div>
+
+        {/* Students Table */}
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -56,7 +128,7 @@ export default async function StudentsPage() {
 
           {!students.length && (
             <div className="text-gray-400 mt-6 text-center">
-              No students saved yet.
+              No students found.
             </div>
           )}
         </div>
